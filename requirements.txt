@@ -1,0 +1,11 @@
+pandas
+numpy
+polars
+duckdb
+pyarrow
+matplotlib
+plotly
+scikit-learn
+lightgbm
+shap
+streamlit

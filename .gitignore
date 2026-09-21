@@ -1,0 +1,32 @@
+# 데이터 (용량이 커서 git에 포함하지 않음)
+Dataset/
+data/raw/
+data/processed/
+*.csv
+*.parquet
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# Jupyter
+.jupyter/
+
+# macOS
+.DS_Store
+
+# 환경 변수 / 비밀값
+.env
+
+# 에디터
+.vscode/
+.idea/
+
+# 기타
+*.log
