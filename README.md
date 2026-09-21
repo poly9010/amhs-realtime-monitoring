@@ -1,53 +1,169 @@
-# PHM 2018 이온 밀 식각 장비 예지보전 (Predictive Maintenance)
+# AMHS 이송장치 실시간 예지보전 모니터링 시스템
 
-반도체 식각 장비(이온 밀, Ion Mill Etching Tool)의 센서 데이터를 이용해 **Flowcool 관련 3가지 고장 모드**를 사전에 감지하고, 고장까지 남은 시간(TTF, Time-To-Failure)을 예측하는 프로젝트입니다.
+> 반도체 팹 물류 이송장치(OHT·AGV)의 1초 단위 센서·열화상 데이터로 **탄화(과열) 위험 등급을 실시간 판별**하고, 40대 이송장치의 상태를 한눈에 보여주는 모니터링 시스템
 
-> 12주 포트폴리오 프로젝트입니다. 현재 **1주차(환경 세팅)** 진행 중입니다.
+![status](https://img.shields.io/badge/status-in%20progress-yellow)
+![python](https://img.shields.io/badge/python-3.11-blue)
 
-## 프로젝트 목표
+<!-- 시연 GIF가 준비되면 여기에 추가: ![demo](reports/figures/demo.gif) -->
 
-- 식각 장비의 Flowcool 관련 3가지 고장 모드(F1 누설 / F2 압력 과다 / F3 압력 하한 이탈) 사전 감지
-- 고장까지 남은 시간(TTF) 예측
-- 실시간 모니터링 대시보드 구현 (Streamlit)
-- **정확도보다 오경보율(false alarm rate)과 리드타임(lead time)을 중시**하는 현장 관점의 평가
+---
 
-## 데이터
+## 1. 프로젝트 개요
 
-- [PHM Society 2018 Data Challenge](https://www.phmsociety.org/data-challenge) — Ion Mill Etching Tool
-- 출처: NASA DASHlink, PHM Data Challenges
-- 용량이 커서(수십 GB) 저장소에는 포함하지 않으며, 다운로드 방법은 [`data/README.md`](data/README.md)를 참고하세요.
+### 문제 정의
+반도체 팹에서 OHT·AGV 같은 이송장치가 멈추면 웨이퍼 이동이 중단되어 생산 전체에 영향을 줍니다. 특히 모터·전장부 과열로 인한 **탄화**는 화재로 이어질 수 있는 안전 문제입니다. 이 프로젝트는 이송장치 내부 센서와 열화상 정보로 위험 징후를 조기에 감지하고, 여러 대의 장치를 실시간으로 모니터링하는 시스템을 구현합니다.
 
-## 폴더 구조
+### 목표
+- 센서 8종 + 열화상 최고온도로 위험 등급 4단계(정상·관심·경고·위험) 판별
+- 순간값이 아닌 **최근 N초의 흐름**으로 판단하는 실시간 추론
+- 현장 알람 피로도를 고려한 **알람 정책** 설계
+- 저장 데이터를 실시간처럼 재생하는 **모니터링 시스템** 구현 (MQTT → InfluxDB → Grafana)
 
+### 핵심 결과
+<!-- 모델·시스템 완성 후 채우기 -->
+| 항목 | 결과 |
+|---|---|
+| 위험 등급 재현율 | TBD |
+| Macro F1 (기준선 0.68) | TBD |
+| 평균 조기 감지 시간 | TBD |
+| 1건당 추론 시간 | TBD |
+
+---
+
+## 2. 시스템 아키텍처
+
+```mermaid
+flowchart LR
+    A[데이터 재생기<br/>Validation 세트 1초 단위 전송] -->|MQTT<br/>amhs/type/device| B[Mosquitto 브로커]
+    B --> C[추론 서비스<br/>특징 계산 · 등급 판별 · 알람]
+    C --> D[(InfluxDB<br/>시계열 저장)]
+    D --> E[Grafana<br/>현황판 · 알람]
 ```
-.
-├── 00_프로젝트개요.md      # 프로젝트 목적/배경/12주 계획
-├── 01_진행현황.md          # 주차별 진행 상황, 채팅 요약 누적
-├── 02_데이터명세.md        # 데이터 컬럼/품질 점검 명세
-├── 03_의사결정로그.md      # 주요 의사결정과 이유(면접 대비 핵심 자료)
-├── 04_코드구조.md          # 코드/폴더 구조, 코딩 규칙
-├── data/                  # 원본·가공 데이터 (git 제외, README만 포함)
-├── notebooks/             # 단계별 분석 노트북
-├── src/                   # 재사용 코드 (전처리, 특징 추출, 평가 등)
-├── app/                   # Streamlit 대시보드
-├── reports/figures/       # README/발표용 그래프
-└── requirements.txt
-```
 
-## 진행 상황
+| 구성요소 | 역할 | 기술 |
+|---|---|---|
+| 데이터 재생기 | 모델이 학습하지 않은 Validation 데이터를 장치별로 1초 간격 전송 (배속 지원) | Python, paho-mqtt |
+| 메시지 브로커 | 장치별 토픽으로 데이터 전달 | Mosquitto |
+| 추론 서비스 | 최근 N초 버퍼로 특징 계산 → ONNX 모델 판별 → 알람 규칙 적용 | Python, onnxruntime |
+| 저장소 | 센서값·예측 등급·정답·알람 이벤트 저장 | InfluxDB |
+| 대시보드 | 40대 상태 현황판, 장치별 추이, 알람 로그 | Grafana |
 
-자세한 주차별 체크리스트와 작업 이력은 [`01_진행현황.md`](01_진행현황.md), 주요 결정과 그 이유는 [`03_의사결정로그.md`](03_의사결정로그.md)에서 확인할 수 있습니다.
+> 8주차 MVP는 위 흐름을 Streamlit 앱 하나로 구현한 버전입니다 (`app_mvp/`).
 
-## 환경
+---
 
-- Python 3.11, macOS (Apple Silicon, 16GB RAM) 기준
-- 대용량 데이터 처리: Parquet + DuckDB/Polars
-- 주요 라이브러리: pandas, polars, duckdb, scikit-learn, lightgbm, shap, streamlit
+## 3. 데이터
 
+**AI Hub 「제조현장 이송장치의 열화 예지보전 멀티모달 데이터」**
+
+| 항목 | 내용 |
+|---|---|
+| 대상 | OHT 20대, AGV 20대 (테스트베드) |
+| 규모 | 1차 개방 13,121세트 (OHT 5,948 / AGV 7,173) |
+| 1세트 | 1초 측정값 = 센서 CSV + 열화상 BIN + 라벨 JSON |
+| 센서 | NTC(온도), PM1.0·PM2.5·PM10(미세먼지), CT1~CT4(전류), 열화상 최고온도 |
+| 정답 | 0 정상 / 1 관심 / 2 경고 / 3 위험 (위험 약 8%) |
+
+- 원본 데이터는 저장소에 포함하지 않습니다. 다운로드와 준비 방법은 [`data/README.md`](data/README.md)를 참고하세요.
+- 같은 장치의 파일을 시간순으로 이으면 1초 간격 시계열이 되어, 실시간 재생에 적합합니다.
+
+---
+
+## 4. 접근 방법
+
+### 4-1. 데이터 통합
+라벨 JSON 하나에 센서값·정답·열화상 요약·메타정보가 모두 들어 있어, 수만 개의 파일을 **한 개의 Parquet 테이블**로 통합했습니다.
+
+### 4-2. 실시간 계산 가능한 특징
+학습과 실시간 추론이 **같은 함수**(`src/features.py`)를 사용하며, "지금까지 들어온 최근 N초"만으로 계산 가능한 특징만 씁니다.
+<!-- 최종 특징 목록과 N 값 기입 -->
+
+### 4-3. 모델
+<!-- 베이스라인 → LightGBM → ONNX 경량화 과정과 비교표 기입 -->
+
+### 4-4. 평가 기준
+정확도보다 **위험·경고 등급을 놓치지 않는 것**을 우선했습니다.
+- 등급별 재현율 (특히 위험 등급)
+- 오분류 비용 행렬 (위험을 정상으로 판단하는 오류에 가장 큰 비용)
+- 조기 감지 시간: 실제 등급 상승 대비 몇 초 먼저 감지했는지
+- 데이터 분할: 장치 단위로 나누어 같은 장치의 데이터가 학습·검증에 섞이지 않도록 함
+
+### 4-5. 알람 정책
+<!-- 예: "3초 연속 경고 이상이면 알람 1회, 5초 연속 정상이면 해제" 와 그 근거 -->
+
+---
+
+## 5. 결과
+<!-- 성능표, 혼동행렬, SHAP 해석, 시연 영상 링크 -->
+
+---
+
+## 6. 실행 방법
+
+### 사전 준비
 ```bash
+git clone https://github.com/<username>/amhs-realtime-monitoring.git
+cd amhs-realtime-monitoring
 pip install -r requirements.txt
+```
+데이터는 [`data/README.md`](data/README.md)에 따라 준비합니다.
+
+### 데이터 통합 → 학습
+```bash
+python src/build_dataset.py      # JSON → data/processed/aihub.parquet
+python src/train.py              # 학습 → models/model.onnx
+```
+
+### MVP 실행 (Streamlit)
+```bash
+streamlit run app_mvp/dashboard.py
+```
+
+### 전체 시스템 실행 (Docker)
+```bash
+docker compose up
+# Grafana: http://localhost:3000
 ```
 
 ---
 
-*이 저장소는 진행 중인 포트폴리오 프로젝트입니다. 내용은 매주 업데이트됩니다.*
+## 7. 프로젝트 구조
+```
+amhs-realtime-monitoring/
+├── data/                 # 원본·가공 데이터 (git 제외), 준비 방법은 data/README.md
+├── notebooks/            # 데이터 확인, EDA, 모델 실험
+├── src/                  # 데이터 통합, 특징, 학습, 평가, 알람 (학습·실시간 공용)
+├── app_mvp/              # Streamlit MVP
+├── services/             # replayer, inference, grafana, mosquitto
+├── models/               # 학습된 모델 (ONNX)
+├── reports/figures/      # README용 그래프
+├── docker-compose.yml
+└── requirements.txt
+```
+
+---
+
+## 8. 한계와 개선 방향
+- 등급별 데이터는 테스트베드의 **모사 시스템**에서 수집되어, 실제 현장 열화 패턴과 차이가 있을 수 있습니다.
+- 1차 개방분(전체의 약 10.6%)만 사용했습니다.
+- 실시간 시스템은 실제 센서가 아닌 **저장 데이터 재생** 방식으로 검증했습니다.
+- 개선 방향: 실제 현장 데이터로 재검증, 원본 열화상 이미지 활용, 장치 간 편차를 고려한 개인화 임계값, 엣지 디바이스 탑재 검증
+<!-- 진행하며 추가 -->
+
+---
+
+## 9. 진행 현황
+
+| 단계 | 기간 | 상태 |
+|---|---|---|
+| 데이터 준비·검증·EDA | 1~3주차 | ⏳ |
+| 특징·모델·알람 정책·경량화 | 4~7주차 | ⬜ |
+| Streamlit MVP | 8주차 | ⬜ |
+| MQTT·InfluxDB·Grafana·Docker | 9~11주차 | ⬜ |
+| 문서화 | 12주차 | ⬜ |
+
+---
+
+## 데이터 출처
+본 프로젝트는 과학기술정보통신부의 재원으로 한국지능정보사회진흥원의 지원을 받아 구축된 「제조현장 이송장치의 열화 예지보전 멀티모달 데이터」를 활용하였습니다. 데이터는 AI Hub(https://www.aihub.or.kr)에서 제공받았습니다.
