@@ -1,6 +1,6 @@
 # 데이터 준비 가이드
 
-이 폴더의 데이터는 **저장소에 포함되어 있지 않습니다.** AI Hub 이용 정책에 따라 원본 데이터는 각자 신청해 받아야 하며, 아래 순서대로 준비하면 프로젝트 코드를 그대로 실행할 수 있습니다.
+원본 데이터는 저장소에 포함되어 있지 않습니다. 아래 순서대로 준비하면 프로젝트 코드를 그대로 실행할 수 있습니다.
 
 ---
 
@@ -8,131 +8,114 @@
 
 | 항목 | 내용 |
 |---|---|
-| 데이터명 | 제조현장 이송장치의 열화 예지보전 멀티모달 데이터 |
-| 제공처 | AI Hub (https://www.aihub.or.kr) |
-| 버전 | v1.4 (2025-06-30 최종 개방) |
-| 사용 범위 | 1차 개방분 13,121세트 (OHT 5,948 / AGV 7,173) |
-| 신청 조건 | 내국인만 신청 가능, PC에서만 다운로드 |
+| 데이터명 | Turbofan Engine Degradation Simulation Data Set (C-MAPSS) |
+| 제공 | NASA Prognostics Center of Excellence (PCoE) |
+| 구성 | 하위셋 4종(FD001~FD004) × 파일 3개 + 설명 문서 |
+| 형식 | 공백 구분 텍스트(.txt), 헤더 없음 |
+
+다운로드: NASA PCoE 데이터 저장소 또는 Kaggle의 미러 데이터셋에서 받을 수 있습니다.
 
 ---
 
-## 2. 다운로드
-
-1. AI Hub에 로그인한 뒤 데이터셋 페이지에서 다운로드를 신청하고 승인을 받습니다.
-2. 승인 후 파일을 내려받습니다. API 다운로드 시 파일이 **분할 압축**(`*.zip.part*`)되어 내려옵니다.
-3. 분할 파일을 병합합니다. 리눅스 명령이 필요하므로 Windows에서는 **WSL**을 사용합니다.
-
-```bash
-find "폴더경로" -name "파일명.zip.part*" -print0 | sort -zt'.' -k2V | xargs -0 cat > "파일명.zip"
-```
-
-> 병합된 파일 용량이 0이면 폴더 경로가 잘못된 것입니다.
-
-4. 압축을 풀어 아래 구조로 배치합니다.
-
----
-
-## 3. 폴더 구조
+## 2. 폴더 구조
 
 ```
 data/
-├── README.md                  # 이 문서
-├── raw/                       # 원본 (git 제외)
-│   ├── Training/
-│   │   ├── 원천데이터/        # *.csv (센서), *.bin (열화상)
-│   │   └── 라벨링데이터/      # *.json
-│   └── Validation/
-│       ├── 원천데이터/
-│       └── 라벨링데이터/
-└── processed/                 # 가공 결과 (git 제외)
-    └── aihub.parquet          # 전체 통합 테이블
+├── README.md
+├── raw/                      # 원본 (git 제외)
+│   ├── train_FD001.txt
+│   ├── test_FD001.txt
+│   ├── RUL_FD001.txt
+│   ├── ... (FD002 ~ FD004)
+│   └── readme.txt            # 원 제공 설명 문서
+└── processed/                # 가공 결과 (git 제외)
+    └── cmapss.parquet
 ```
-
-> 압축 해제 후 실제 하위 폴더 이름이 다를 수 있습니다. 이 경우 `src/config.py`의 경로 설정만 맞추면 됩니다.
-<!-- 실제 폴더 구조 확인 후 위 트리 수정 -->
 
 ---
 
-## 4. 원본 파일 구조
-
-### 파일 단위
-- **1세트 = 1초 측정값 = 같은 이름의 파일 3개**
+## 3. 파일 구조
 
 | 파일 | 내용 |
 |---|---|
-| `agv04_0903_104954.csv` | 센서값 8종 (헤더 1행 + 값 1행) |
-| `agv04_0903_104954.bin` | 열화상 이미지 |
-| `agv04_0903_104954.json` | 메타정보 + 센서값 + 열화상 요약 + 정답 + 외부환경 |
+| `train_FD00X.txt` | 엔진별 **고장까지의 전체 운전 이력** |
+| `test_FD00X.txt` | 엔진별 이력이 **고장 전 임의 시점에서 잘림** |
+| `RUL_FD00X.txt` | test 각 엔진의 **마지막 시점 잔여수명 정답** (한 줄에 하나) |
 
-- **파일명 규칙**: `{장치}_{월일}_{시분초}`
-  - 예) `agv04_0903_104954` → AGV 4번, 9월 3일 10시 49분 54초
-  - 같은 장치의 파일을 시간순으로 이으면 1초 간격 시계열이 됩니다.
+### 컬럼 (26열, 헤더 없음)
 
-### 센서 (CSV)
-```
-NTC,PM1.0,PM2.5,PM10,CT1,CT2,CT3,CT4
-25.7,18.0,22.0,40.0,1.84,74.96,49.94,19.98
-```
-
-| 컬럼 | 의미 | 단위 |
+| 순서 | 컬럼 | 설명 |
 |---|---|---|
-| NTC | 내부 온도 | ℃ |
-| PM1.0, PM2.5, PM10 | 미세먼지 | µg/m³ |
-| CT1 ~ CT4 | 전류 | A |
+| 1 | `engine_id` | 엔진 번호 |
+| 2 | `cycle` | 운전 사이클 번호 (1부터 증가) |
+| 3~5 | `op1`, `op2`, `op3` | 운전조건 설정값 |
+| 6~26 | `s1` ~ `s21` | 센서 측정값 |
 
-### 라벨 (JSON 주요 필드)
+### 로드 예시
+```python
+import pandas as pd
 
-| 블록 | 필드 | 설명 |
-|---|---|---|
-| `meta_info` | `device_id`, `device_name`, `collection_date`, `collection_time`, `cumulative_operating_day` | 장치·시점·누적 가동일 |
-| `sensor_data` | `NTC`, `PM*`, `CT*` → `value`, `data_unit`, `trend` | CSV와 동일한 센서값 |
-| `ir_data` | `temp_max.value_TGmx`, `X_Tmax`, `Y_Tmax` | 열화상 최고 온도와 위치 |
-| `annotations` | `tagging.state` | **정답: 0 정상, 1 관심, 2 경고, 3 위험** |
-| `external_data` | `ex_temperature`, `ex_humidity`, `ex_illuminance` | 외부 온도·습도·조도 |
+cols = ["engine_id", "cycle", "op1", "op2", "op3"] + [f"s{i}" for i in range(1, 22)]
+train = pd.read_csv("data/raw/train_FD001.txt", sep=r"\s+", header=None, names=cols)
+```
 
-> 이 프로젝트는 JSON 하나에 필요한 정보가 모두 있으므로 **CSV를 따로 읽지 않고 JSON 기반으로 통합**합니다.
+---
+
+## 4. 하위셋 특성 [공식 문서 기준 — 직접 확인 필요]
+
+| 셋 | 운전조건 | 고장모드 | train 엔진 | test 엔진 |
+|---|---|---|---|---|
+| FD001 | 1 | 1 (HPC 열화) | 100 | 100 |
+| FD002 | 6 | 1 | 260 | 259 |
+| FD003 | 1 | 2 (HPC, Fan) | 100 | 100 |
+| FD004 | 6 | 2 | 249 | 248 |
+
+> ⚠️ 공식 설명 문서와 실제 파일의 엔진 수가 다른 사례가 보고되어 있습니다.
+> 아래 명령으로 **직접 확인한 뒤 이 표를 갱신**하세요.
+> ```python
+> train.engine_id.nunique(), test.engine_id.nunique(), len(open("RUL_FD001.txt").readlines())
+> ```
 
 ---
 
 ## 5. 통합 테이블 생성
 
 ```bash
-python src/build_dataset.py
+python src/load.py
 ```
 
-결과: `data/processed/aihub.parquet` (약 13,000행)
+결과: `data/processed/cmapss.parquet`
 
 | 컬럼 | 설명 |
 |---|---|
-| `device`, `device_type`, `model` | 장치 ID, oht/agv, 장치 모델 |
-| `timestamp` | 수집 날짜 + 시간 |
-| `op_day`, `equip_history` | 누적 가동일, 장비 이력 |
-| `NTC`, `PM1.0`, `PM2.5`, `PM10`, `CT1`~`CT4` | 센서값 |
-| `ir_max`, `ir_x`, `ir_y` | 열화상 최고 온도와 위치 |
-| `ex_temp`, `ex_humidity`, `ex_lux` | 외부 환경 |
-| `state` | 정답 등급 (0~3) |
-| `split` | train / valid |
+| `subset` | FD001 ~ FD004 |
+| `split` | train / test |
+| `engine_id`, `cycle` | 엔진 번호, 사이클 |
+| `op1`~`op3`, `s1`~`s21` | 운전조건, 센서값 |
+| `RUL` | train에만 계산해 부여 (라벨링 방식은 `src/labeling.py`) |
 
 ---
 
-## 6. 데이터 분포 (1차 개방분)
-
-| 구분 | 정상 | 관심 | 경고 | 위험 | 합계 |
-|---|---|---|---|---|---|
-| OHT | 1,840 | 1,793 | 1,805 | 510 | 5,948 |
-| AGV | 2,996 | 1,817 | 1,826 | 534 | 7,173 |
+## 6. 사용 규칙
+- **학습은 train, 실시간 재생 시연은 test** 데이터를 사용합니다.
+- train 내부에서 검증셋을 나눌 때는 **엔진 단위**로 나눕니다. 같은 엔진의 사이클이 학습과 검증에 섞이면 성능이 과대평가됩니다.
+- test 정답은 각 엔진의 **마지막 시점 RUL 하나**뿐입니다. 중간 사이클의 정답은 없으므로, 재생 중 예측값 평가는 마지막 시점 기준으로 합니다.
+- `data/raw`, `data/processed`는 `.gitignore`에 등록되어 커밋되지 않습니다.
 
 ---
 
-## 7. 사용 시 주의사항
-- **학습은 Training, 실시간 재생 시연은 Validation** 데이터를 사용합니다.
-- Training 내부에서 검증셋을 나눌 때는 **장치 단위**로 나눕니다 (같은 장치의 연속 데이터가 섞이면 성능이 과대평가됨).
-- 등급별 데이터는 테스트베드 모사 시스템에서 수집되었습니다.
-- 원본 데이터와 가공 데이터는 `.gitignore`에 등록되어 커밋되지 않습니다.
-- 데이터 이용은 AI Hub 이용 정책을 따릅니다.
+## 7. 확인 체크리스트 (1주차)
+- [ ] 각 파일의 행 수 / 열 수 / 엔진 수
+- [ ] RUL 파일 줄 수 = test 엔진 수인지
+- [ ] 엔진별 사이클 길이 분포 (최소 / 중앙값 / 최대)
+- [ ] `op1`~`op3` 값 분포 → 운전조건이 실제로 몇 종류인지
+- [ ] 센서 21개 중 값이 거의 변하지 않는 센서 목록
+- [ ] 결측·중복 여부
+- [ ] 원 제공 `readme.txt` 설명과 실제 데이터의 차이
 
-## 확인 필요 항목
-- [ ] 압축 해제 후 실제 폴더 구조
-- [ ] 열화상 `.bin` 파일 형식 (해상도, 저장 방식)
-- [ ] `trend` 필드의 의미
-- [ ] 장치별 연속 구간과 등급 변화 양상
+확인 결과는 `02_데이터명세.md`에 기록합니다.
+
+---
+
+## 출처
+A. Saxena and K. Goebel (2008). *Turbofan Engine Degradation Simulation Data Set*, NASA Prognostics Center of Excellence (PCoE) Data Set Repository, NASA Ames Research Center.
